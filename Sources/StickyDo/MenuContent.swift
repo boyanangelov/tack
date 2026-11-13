@@ -7,7 +7,8 @@ struct MenuContent: View {
     @State private var selected: UUID?
     @State private var showArchive = false
     @State private var query = ""
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var launchAtLogin = false
+    @State private var loginNeedsApproval = false
 
     var body: some View {
         Group {
@@ -61,17 +62,35 @@ struct MenuContent: View {
 
             Divider()
             HStack {
-                Toggle("Launch at login", isOn: $launchAtLogin)
+                Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
                     .toggleStyle(.checkbox).font(.caption)
-                    .onChange(of: launchAtLogin) { _, on in
-                        do { on ? try SMAppService.mainApp.register() : try SMAppService.mainApp.unregister() }
-                        catch { launchAtLogin = SMAppService.mainApp.status == .enabled }
-                    }
+                if loginNeedsApproval {
+                    Button("Approve…") { SMAppService.openSystemSettingsLoginItems() }
+                        .buttonStyle(.link).font(.caption)
+                        .help("macOS needs you to allow StickyDo in System Settings → Login Items")
+                }
                 Spacer()
                 Button("Quit") { NSApp.terminate(nil) }.buttonStyle(.borderless).font(.caption)
             }
         }
         .padding(12)
+        .onAppear(perform: refreshLoginStatus)
+    }
+
+    private func refreshLoginStatus() {
+        let status = SMAppService.mainApp.status
+        launchAtLogin = status == .enabled || status == .requiresApproval
+        loginNeedsApproval = status == .requiresApproval
+    }
+
+    private func setLaunchAtLogin(_ on: Bool) {
+        do {
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+        } catch {
+            NSLog("StickyDo: launch at login \(on ? "register" : "unregister") failed: \(error)")
+        }
+        refreshLoginStatus()
+        if loginNeedsApproval { SMAppService.openSystemSettingsLoginItems() }
     }
 
     private func card(_ note: Note) -> some View {

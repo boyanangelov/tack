@@ -12,7 +12,7 @@ A small, native macOS menu bar app for sticky-note checklists.
   Closing a pinned window only unpins the sticky. Nothing is deleted.
 - **History**: archive a sticky to keep it. The History tab lets you browse, search, restore, or permanently delete old ones. Right-click a sticky and choose "Duplicate as new list" to reuse it as a template, with all items unchecked.
 - **Persistence**: data is saved as JSON in `~/Library/Application Support/StickyDo/notes.json`, and images are saved in `images/` next to it. Pinned stickies reopen where you left them.
-- Optional *Launch at login*.
+- Optional *Launch at login* (checkbox at the bottom of the popover). Run the app from `~/Applications` (`./build.sh --install`) so the login item points at a stable copy. If macOS asks for approval, click *Approve…* to open System Settings → Login Items.
 
 ## Build
 
