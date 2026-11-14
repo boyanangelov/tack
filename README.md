@@ -2,6 +2,10 @@
 
 Sticky notes that live in your macOS menu bar: checklists, text and images, which you can pin to the desktop.
 
+![Tack: ticking items, adding one, and pinning a sticky to the desktop](docs/menu-demo.gif)
+
+([MP4 version](docs/menu-demo.mp4))
+
 ## Why
 
 Tack is for small lists and scraps of text, like a packing list, today's errands or a note from a call. Apple's Stickies lives only on the desktop, and a full notes app is too heavy for a three-item list. Tack is one click away in the menu bar, and when a note needs to stay in view, you tack it to the desktop.
