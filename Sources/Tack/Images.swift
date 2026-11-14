@@ -4,8 +4,7 @@ import UniformTypeIdentifiers
 /// Pasted / dropped images are stored as PNG files next to notes.json.
 enum ImageStore {
     static let dir: URL = {
-        let d = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("StickyDo/images", isDirectory: true)
+        let d = NoteStore.dataDir.appendingPathComponent("images", isDirectory: true)
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         return d
     }()

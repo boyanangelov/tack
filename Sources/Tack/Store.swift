@@ -8,12 +8,16 @@ final class NoteStore: ObservableObject {
     @Published private(set) var notes: [Note] = []
     private var saveWork: DispatchWorkItem?
 
-    let fileURL: URL = {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("StickyDo", isDirectory: true)
+    /// ~/Library/Application Support/Tack, or $TACK_DATA_DIR if set (handy for demos and testing).
+    nonisolated static let dataDir: URL = {
+        let dir = ProcessInfo.processInfo.environment["TACK_DATA_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Tack", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("notes.json")
+        return dir
     }()
+
+    let fileURL = NoteStore.dataDir.appendingPathComponent("notes.json")
 
     private init() { load() }
 
@@ -127,7 +131,7 @@ final class NoteStore: ObservableObject {
             // Keep the unreadable file instead of overwriting it.
             let backup = fileURL.deletingPathExtension().appendingPathExtension("corrupt-\(Int(Date().timeIntervalSince1970)).json")
             try? FileManager.default.copyItem(at: fileURL, to: backup)
-            NSLog("StickyDo: failed to load notes: \(error)")
+            NSLog("Tack: failed to load notes: \(error)")
         }
     }
 
@@ -143,6 +147,6 @@ final class NoteStore: ObservableObject {
         let enc = JSONEncoder(); enc.dateEncodingStrategy = .iso8601
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do { try enc.encode(notes).write(to: fileURL, options: .atomic) }
-        catch { NSLog("StickyDo: failed to save notes: \(error)") }
+        catch { NSLog("Tack: failed to save notes: \(error)") }
     }
 }

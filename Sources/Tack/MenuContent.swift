@@ -67,7 +67,7 @@ struct MenuContent: View {
                 if loginNeedsApproval {
                     Button("Approve…") { SMAppService.openSystemSettingsLoginItems() }
                         .buttonStyle(.link).font(.caption)
-                        .help("macOS needs you to allow StickyDo in System Settings → Login Items")
+                        .help("macOS needs you to allow Tack in System Settings → Login Items")
                 }
                 Spacer()
                 Button("Quit") { NSApp.terminate(nil) }.buttonStyle(.borderless).font(.caption)
@@ -87,7 +87,7 @@ struct MenuContent: View {
         do {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
         } catch {
-            NSLog("StickyDo: launch at login \(on ? "register" : "unregister") failed: \(error)")
+            NSLog("Tack: launch at login \(on ? "register" : "unregister") failed: \(error)")
         }
         refreshLoginStatus()
         if loginNeedsApproval { SMAppService.openSystemSettingsLoginItems() }

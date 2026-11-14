@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct StickyDoApp: App {
+struct TackApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
