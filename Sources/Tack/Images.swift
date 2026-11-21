@@ -95,10 +95,12 @@ enum MarkdownExport {
         if !t.isEmpty { out.append("# \(t)\n") }
         switch n.kind {
         case .text:
-            let b = n.body.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !b.isEmpty { out.append(b) }
+            let b = n.body
+            if !b.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append(b) }
         case .checklist:
-            let lines = n.nonEmptyItems.map { "- [\($0.done ? "x" : " ")] \($0.text)" }
+            let lines = n.nonEmptyItems.map {
+                String(repeating: " ", count: $0.depth * 4) + "- [\($0.done ? "x" : " ")] \($0.text)"
+            }
             if !lines.isEmpty { out.append(lines.joined(separator: "\n")) }
         }
         if !n.images.isEmpty {
@@ -106,6 +108,19 @@ enum MarkdownExport {
             out.append(n.images.map { "![image](\(ImageStore.url($0).absoluteString))" }.joined(separator: "\n"))
         }
         return out.joined(separator: "\n")
+    }
+
+    static func checklistItems(_ markdown: String) -> [TodoItem] {
+        markdown.split(whereSeparator: \.isNewline).compactMap { line in
+            let leading = line.prefix { $0 == " " || $0 == "\t" }
+            let spaces = leading.reduce(0) { $0 + ($1 == "\t" ? 4 : 1) }
+            let body = line.dropFirst(leading.count).trimmingCharacters(in: .whitespaces)
+            guard !body.isEmpty else { return nil }
+            let marker = body.prefix(6).lowercased()
+            let isTask = marker == "- [x] " || marker == "- [ ] "
+            let stripped = isTask ? String(body.dropFirst(6)) : body
+            return TodoItem(text: stripped, done: marker == "- [x] ", indentation: min(TodoItem.maxDepth, spaces / 4))
+        }
     }
 
     static func copy(_ n: Note) {

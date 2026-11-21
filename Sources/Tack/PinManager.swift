@@ -8,36 +8,30 @@ final class NoteWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
-    /// Height of the top bar that acts as a drag handle, and width reserved for buttons at either end.
-    private let barHeight: CGFloat = 34
-    private let leftButtons: CGFloat = 30
-    private let rightButtons: CGFloat = 115
+    private var dragOffset: NSPoint?
+    var isDraggingNote: Bool { dragOffset != nil }
 
-    /// Intercept clicks before SwiftUI sees them: dragging the top bar (or ⌘-dragging anywhere) moves the sticky.
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .leftMouseDown {
-            let p = event.locationInWindow
-            let inBar = p.y >= frame.height - barHeight && p.x > leftButtons && p.x < frame.width - rightButtons
-            if inBar || event.modifierFlags.contains(.command) {
-                trackDrag()
-                return
-            }
+        let point = event.locationInWindow
+        let inHandle = (34..<58).contains(point.x) && point.y >= frame.height - 25
+        if event.type == .leftMouseDown && (inHandle || event.modifierFlags.contains(.command)) {
+            dragOffset = point
+            makeKeyAndOrderFront(nil)
+            NSCursor.closedHand.push()
+            return
+        }
+        if let offset = dragOffset, event.type == .leftMouseDragged {
+            let mouse = NSEvent.mouseLocation
+            setFrameOrigin(NSPoint(x: mouse.x - offset.x, y: mouse.y - offset.y))
+            return
+        }
+        if isDraggingNote && event.type == .leftMouseUp {
+            dragOffset = nil
+            NSCursor.pop()
+            NotificationCenter.default.post(name: NSWindow.didMoveNotification, object: self)
+            return
         }
         super.sendEvent(event)
-    }
-
-    private func trackDrag() {
-        NSApp.activate(ignoringOtherApps: true)
-        makeKeyAndOrderFront(nil)
-        NSCursor.closedHand.push()
-        defer { NSCursor.pop() }
-        let start = NSEvent.mouseLocation
-        let origin = frame.origin
-        while let e = nextEvent(matching: [.leftMouseDragged, .leftMouseUp], until: .distantFuture, inMode: .eventTracking, dequeue: true) {
-            if e.type == .leftMouseUp { break }
-            let now = NSEvent.mouseLocation
-            setFrameOrigin(NSPoint(x: origin.x + now.x - start.x, y: origin.y + now.y - start.y))
-        }
     }
 
     /// Don't snap the sticky back to one screen — let it go anywhere across displays.
@@ -88,12 +82,12 @@ final class PinManager: NSObject, NSWindowDelegate {
         w.isReleasedWhenClosed = false
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
-        w.isMovableByWindowBackground = true
+        w.isMovable = false
         w.standardWindowButton(.miniaturizeButton)?.isHidden = true
         w.standardWindowButton(.zoomButton)?.isHidden = true
-        w.minSize = NSSize(width: 180, height: 140)
+        w.minSize = NSSize(width: 200, height: 120)
         w.hasShadow = true
-        w.contentView = NSHostingView(rootView: NoteEditor(id: note.id, inWindow: true).environmentObject(store))
+        w.contentView = NSHostingView(rootView: NoteEditor(id: note.id, inWindow: true).ignoresSafeArea(.container, edges: .top).environmentObject(store))
         w.setFrame(frame, display: false)
         w.delegate = self
         windows[note.id] = w
@@ -141,7 +135,7 @@ final class PinManager: NSObject, NSWindowDelegate {
     func windowDidEndLiveResize(_ notification: Notification) { saveFrame(notification) }
 
     private func saveFrame(_ notification: Notification) {
-        guard let w = notification.object as? NoteWindow, let id = w.noteID else { return }
+        guard let w = notification.object as? NoteWindow, !w.isDraggingNote, let id = w.noteID else { return }
         store.update(id, touch: false) { $0.frame = Rect(w.frame) }
     }
 }

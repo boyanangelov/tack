@@ -151,6 +151,7 @@ struct MenuContent: View {
         }
         .contextMenu {
             Button("Copy as Markdown") { MarkdownExport.copy(note) }
+            Button("Paste Markdown") { store.pasteMarkdown(into: note.id) }
             Button("Duplicate") { if let id = store.duplicate(note.id) { selected = id } }
             Button("Delete forever", role: .destructive) { store.delete(note.id) }
         }

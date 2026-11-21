@@ -5,6 +5,10 @@ struct TodoItem: Codable, Identifiable, Equatable {
     var id = UUID()
     var text: String = ""
     var done: Bool = false
+    var indentation: Int? = nil
+
+    static let maxDepth = 5
+    var depth: Int { max(0, min(Self.maxDepth, indentation ?? 0)) }
 }
 
 enum PinMode: String, Codable, CaseIterable {

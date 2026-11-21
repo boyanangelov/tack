@@ -77,6 +77,28 @@ final class NoteStore: ObservableObject {
         }
     }
 
+    func indentItem(_ id: UUID, _ itemID: UUID, by amount: Int) {
+        guard let items = note(id)?.items, let index = items.firstIndex(where: { $0.id == itemID }) else { return }
+        let depth = max(0, min(TodoItem.maxDepth, items[index].depth + amount))
+        guard depth != items[index].depth else { return }
+        update(id) { $0.items[index].indentation = depth }
+    }
+
+    func pasteMarkdown(into id: UUID) {
+        guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty,
+              let note = note(id) else { return }
+        if note.kind == .text {
+            update(id) { $0.body += ($0.body.isEmpty || $0.body.hasSuffix("\n") ? "" : "\n") + text }
+        } else {
+            let items = MarkdownExport.checklistItems(text)
+            guard !items.isEmpty else { return }
+            update(id) {
+                if $0.items.count == 1, $0.items[0].text.isEmpty { $0.items = [] }
+                $0.items.append(contentsOf: items)
+            }
+        }
+    }
+
     func addImage(_ id: UUID, _ image: NSImage) {
         guard note(id) != nil, let name = ImageStore.save(image) else { return }
         update(id) { $0.images.append(name) }
@@ -102,7 +124,7 @@ final class NoteStore: ObservableObject {
         guard var copy = note(id) else { return nil }
         copy.id = UUID(); copy.archived = false; copy.pinned = false; copy.frame = nil
         copy.createdAt = Date(); copy.updatedAt = Date()
-        copy.items = copy.items.map { TodoItem(text: $0.text, done: false) }
+        copy.items = copy.items.map { TodoItem(text: $0.text, indentation: $0.indentation) }
         copy.images = copy.images.compactMap { ImageStore.load($0).flatMap(ImageStore.save) }
         notes.append(copy)
         scheduleSave()

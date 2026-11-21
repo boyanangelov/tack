@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The sticky itself — plain text or a checklist, plus pasted images.
@@ -15,11 +16,8 @@ struct NoteEditor: View {
 
     var body: some View {
         if let note = store.note(id) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 toolbar(note)
-                TextField("Title", text: store.titleBinding(id))
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 15, weight: .semibold))
                 Divider().opacity(0.4)
 
                 if note.kind == .text {
@@ -36,7 +34,7 @@ struct NoteEditor: View {
                 footer(note)
             }
             .padding(.horizontal, 12)
-            .padding(.top, inWindow ? 6 : 10)
+            .padding(.top, inWindow ? 2 : 6)
             .padding(.bottom, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(note.color.color)
@@ -54,22 +52,23 @@ struct NoteEditor: View {
     // MARK: Toolbar
 
     @ViewBuilder private func toolbar(_ note: Note) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             if inWindow {
-                Spacer().frame(width: 18) // room for the close button (close = unpin)
-                // The window itself handles dragging in this strip (see NoteWindow.sendEvent).
+                Spacer().frame(width: 18) // room for the native close button
                 Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.black.opacity(0.3))
-                    .frame(maxWidth: .infinity)
-                    .allowsHitTesting(false)
-            } else {
-                if let onBack {
-                    Button(action: onBack) { Image(systemName: "chevron.left") }
-                        .help("Back to all stickies")
-                }
-                Spacer()
+                    .foregroundStyle(Color.black.opacity(0.35))
+                    .frame(width: 20)
+                    .help("Drag note")
+            } else if let onBack {
+                Button(action: onBack) { Image(systemName: "chevron.left") }
+                    .help("Back to all stickies")
             }
+
+            TextField("Title", text: store.titleBinding(id))
+                .textFieldStyle(.plain)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.black.opacity(0.85))
+                .frame(minWidth: 35, maxWidth: .infinity)
 
             Button { store.toggleKind(id) } label: {
                 Image(systemName: note.kind == .text ? "checklist" : "text.alignleft")
@@ -81,9 +80,13 @@ struct NoteEditor: View {
                 copied = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
             } label: { Image(systemName: copied ? "checkmark" : "doc.on.doc") }
-                .help("Copy as Markdown")
+                .help("Copy as Markdown (⌘⇧C)")
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+                .accessibilityLabel("Copy as Markdown")
 
             Menu {
+                Button("Paste Markdown") { store.pasteMarkdown(into: id) }
+                Divider()
                 ForEach(NoteColor.allCases, id: \.self) { c in
                     Button(c.rawValue.capitalized) { store.update(id) { $0.color = c } }
                 }
@@ -93,7 +96,7 @@ struct NoteEditor: View {
                 }
             } label: { Image(systemName: "ellipsis.circle") }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .help("Color & window options")
+                .help("Note options")
 
             if !inWindow {
                 Button {
@@ -109,9 +112,9 @@ struct NoteEditor: View {
                 .help(note.archived ? "Restore" : "Archive (keeps it in history)")
         }
         .buttonStyle(.plain)
-        .font(.system(size: 13))
+        .font(.system(size: 12))
         .foregroundStyle(Color.black.opacity(0.6))
-        .frame(height: inWindow ? 26 : 20)
+        .frame(height: 22)
     }
 
     // MARK: Checklist
@@ -126,6 +129,13 @@ struct NoteEditor: View {
                 .buttonStyle(.plain).foregroundStyle(.secondary).padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background {
+            ChecklistTabMonitor { direction in
+                guard let item = focused else { return false }
+                store.indentItem(id, item, by: direction)
+                return true
+            }
         }
     }
 
@@ -159,6 +169,7 @@ struct NoteEditor: View {
                 .buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }
+        .padding(.leading, CGFloat(item.depth) * 12)
         .onHover { hovered = $0 ? item.id : (hovered == item.id ? nil : hovered) }
     }
 
@@ -208,7 +219,7 @@ struct NoteEditor: View {
         let new = TodoItem()
         store.update(id) { n in
             if let itemID, let i = n.items.firstIndex(where: { $0.id == itemID }) {
-                n.items.insert(new, at: i + 1)
+                n.items.insert(TodoItem(id: new.id, indentation: n.items[i].depth), at: i + 1)
             } else {
                 n.items.append(new)
             }
@@ -224,6 +235,38 @@ struct NoteEditor: View {
             n.items.remove(at: i)
         }
         if focusPrevious, let prev { DispatchQueue.main.async { focused = prev } }
+    }
+}
+
+/// Catch the physical Tab key before the native field editor uses it for focus traversal.
+private struct ChecklistTabMonitor: NSViewRepresentable {
+    let indent: (Int) -> Bool
+
+    func makeNSView(context: Context) -> KeyMonitorView { KeyMonitorView(frame: .zero) }
+
+    func updateNSView(_ view: KeyMonitorView, context: Context) {
+        view.indent = indent
+    }
+
+    final class KeyMonitorView: NSView {
+        var indent: ((Int) -> Bool)?
+        private var monitor: Any?
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            super.viewWillMove(toWindow: newWindow)
+            guard newWindow != nil else { return }
+
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard event.keyCode == 48, let self, let window = self.window,
+                      event.window === window, window.firstResponder is NSTextView else { return event }
+                let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+                guard modifiers.isEmpty || modifiers == .shift,
+                      self.indent?(modifiers == .shift ? -1 : 1) == true else { return event }
+                return nil
+            }
+        }
     }
 }
 
